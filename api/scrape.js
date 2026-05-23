@@ -17,7 +17,7 @@ export default async function handler(req, res) {
 
   try {
     const response = await fetch(
-      'https://api.apify.com/v2/acts/apify~google-maps-scraper/runs',
+      'https://api.apify.com/v2/acts/compass~crawler-google-places/runs',
       {
         method: 'POST',
         headers: {
