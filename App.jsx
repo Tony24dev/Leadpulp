@@ -681,7 +681,7 @@ function AppPage({ setPage, credits, onUseCredits, onBuyCredits }) {
             <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: 18, fontWeight: 600, color: COLORS.textMuted, marginBottom: 8 }}>Ready to scrape</div>
             <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: 14, color: COLORS.textDim }}>
               {credits > 0
-                ? "Enter a business type and location above to pull leads"
+                ? `You have ${credits} free credit${credits === 1 ? "" : "s"} — enter a business type and location above to pull leads`
                 : "Buy credits below to start scraping real Google Maps data"}
             </div>
           </div>
@@ -735,8 +735,15 @@ export default function LeadPulp() {
   const [toast, setToast] = useState(null);
 
   const [credits, setCredits] = useState(() => {
-    try { return parseInt(localStorage.getItem("lp_credits") || "0", 10); }
-    catch { return 0; }
+    try {
+      const stored = localStorage.getItem("lp_credits");
+      if (stored === null) {
+        // First visit — give 3 free credits
+        localStorage.setItem("lp_credits", "3");
+        return 3;
+      }
+      return parseInt(stored, 10);
+    } catch { return 3; }
   });
 
   // Persist credits to localStorage
