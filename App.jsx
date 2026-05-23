@@ -15,6 +15,8 @@ const COLORS = {
   accentGlow: "rgba(255,107,0,0.15)",
   green: "#22c55e",
   greenDim: "rgba(34,197,94,0.1)",
+  red: "#ef4444",
+  redDim: "rgba(239,68,68,0.1)",
 };
 
 const fonts = `
@@ -31,25 +33,47 @@ const baseStyles = `
   @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
   @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
-  @keyframes scanline { 0% { top: -10%; } 100% { top: 110%; } }
   @keyframes glow { 0%, 100% { box-shadow: 0 0 20px ${COLORS.accentGlow}; } 50% { box-shadow: 0 0 40px ${COLORS.accentGlow}, 0 0 60px rgba(255,107,0,0.08); } }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
 `;
 
-// ─── MOCK DATA ───
-const MOCK_RESULTS = [
-  { name: "Sunrise Dental Care", phone: "(214) 555-0142", email: "info@sunrisedental.com", address: "4521 Elm St, Dallas, TX 75201", rating: 4.8, reviews: 247 },
-  { name: "Lone Star Family Dentistry", phone: "(214) 555-0198", email: "hello@lonestardentist.com", address: "1200 Commerce St, Dallas, TX 75202", rating: 4.6, reviews: 189 },
-  { name: "Dallas Smile Studio", phone: "(214) 555-0234", email: "contact@dallassmile.com", address: "789 Oak Lawn Ave, Dallas, TX 75219", rating: 4.9, reviews: 312 },
-  { name: "Pearlshine Dental", phone: "(214) 555-0167", email: "team@pearlshine.co", address: "3456 McKinney Ave, Dallas, TX 75204", rating: 4.4, reviews: 98 },
-  { name: "Deep Ellum Dental Group", phone: "(214) 555-0289", email: "info@deepellumdental.com", address: "2801 Main St, Dallas, TX 75226", rating: 4.7, reviews: 156 },
-  { name: "Uptown Orthodontics", phone: "(214) 555-0311", email: "smile@uptownortho.com", address: "2600 Cedar Springs Rd, Dallas, TX 75201", rating: 4.5, reviews: 203 },
-  { name: "Trinity Dental Wellness", phone: "(214) 555-0345", email: "care@trinitydental.com", address: "1500 Pacific Ave, Dallas, TX 75201", rating: 4.3, reviews: 87 },
-  { name: "Greenville Ave Dental", phone: "(214) 555-0378", email: "hello@greenvilledental.com", address: "5600 Greenville Ave, Dallas, TX 75206", rating: 4.8, reviews: 271 },
-];
+// ─── TOAST ───
 
-// ─── COMPONENTS ───
+function Toast({ message, type, onClose }) {
+  useEffect(() => {
+    const t = setTimeout(onClose, 5000);
+    return () => clearTimeout(t);
+  }, [onClose]);
 
-function Nav({ page, setPage }) {
+  const bg = type === "success" ? COLORS.greenDim : COLORS.redDim;
+  const border = type === "success" ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)";
+  const color = type === "success" ? COLORS.green : COLORS.red;
+  const icon = type === "success" ? "✓" : "✕";
+
+  return (
+    <div style={{
+      position: "fixed", bottom: 32, left: "50%", transform: "translateX(-50%)",
+      zIndex: 999, background: COLORS.surface, border: `1px solid ${border}`,
+      borderRadius: 12, padding: "16px 24px", display: "flex", alignItems: "center",
+      gap: 12, animation: "toastIn 0.3s ease-out", boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+      minWidth: 280, maxWidth: 480,
+    }}>
+      <div style={{
+        width: 28, height: 28, borderRadius: "50%", background: bg,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        color, fontSize: 14, fontWeight: 700, flexShrink: 0,
+      }}>{icon}</div>
+      <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: 14, color: COLORS.text, flex: 1 }}>
+        {message}
+      </span>
+      <span onClick={onClose} style={{ color: COLORS.textDim, cursor: "pointer", fontSize: 18, lineHeight: 1 }}>×</span>
+    </div>
+  );
+}
+
+// ─── NAV ───
+
+function Nav({ page, setPage, credits }) {
   return (
     <nav style={{
       position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
@@ -67,9 +91,16 @@ function Nav({ page, setPage }) {
           Lead<span style={{ color: COLORS.accent }}>Pulp</span>
         </span>
       </div>
-      <div style={{ display: "flex", gap: 32, alignItems: "center" }}>
+      <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
         <NavLink label="How it works" onClick={() => setPage("home")} />
-        <NavLink label="Pricing" onClick={() => setPage("home")} />
+        <NavLink label="Pricing" onClick={() => { setPage("home"); setTimeout(() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" }), 100); }} />
+        {credits > 0 && (
+          <div style={{
+            fontFamily: "'Space Mono', monospace", fontSize: 12, color: COLORS.accent,
+            background: COLORS.accentDim, padding: "5px 12px", borderRadius: 6,
+            border: `1px solid rgba(255,107,0,0.2)`,
+          }}>⚡ {credits.toLocaleString()}</div>
+        )}
         <button onClick={() => setPage("app")} style={{
           background: COLORS.accent, color: "#000", border: "none", borderRadius: 8,
           padding: "10px 24px", fontFamily: "'Outfit', sans-serif", fontWeight: 600, fontSize: 14,
@@ -94,11 +125,18 @@ function NavLink({ label, onClick }) {
   );
 }
 
+// ─── HERO ───
+
 function Hero({ setPage }) {
+  const scrollToPricing = () => {
+    document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" });
+  };
+
   return (
     <section style={{
       minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center",
-      justifyContent: "center", padding: "120px 40px 80px", textAlign: "center", position: "relative", overflow: "hidden",
+      justifyContent: "center", padding: "120px 40px 80px", textAlign: "center",
+      position: "relative", overflow: "hidden",
     }}>
       {/* Grid background */}
       <div style={{
@@ -143,23 +181,20 @@ function Hero({ setPage }) {
             padding: "16px 40px", fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 17,
             cursor: "pointer", transition: "all 0.3s", animation: "glow 3s ease-in-out infinite",
           }}
-          onMouseEnter={e => { e.target.style.background = COLORS.accentHover; e.target.style.transform = "translateY(-2px)"; }}
-          onMouseLeave={e => { e.target.style.background = COLORS.accent; e.target.style.transform = "translateY(0)"; }}
+          onMouseEnter={e => { e.currentTarget.style.background = COLORS.accentHover; e.currentTarget.style.transform = "translateY(-2px)"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = COLORS.accent; e.currentTarget.style.transform = "translateY(0)"; }}
           >Try it free →</button>
-          <button onClick={() => setPage("home")} style={{
+          <button onClick={scrollToPricing} style={{
             background: "transparent", color: COLORS.text, border: `1px solid ${COLORS.border}`,
             borderRadius: 10, padding: "16px 40px", fontFamily: "'Outfit', sans-serif", fontWeight: 600,
             fontSize: 17, cursor: "pointer", transition: "all 0.3s",
           }}
-          onMouseEnter={e => e.target.style.borderColor = COLORS.textMuted}
-          onMouseLeave={e => e.target.style.borderColor = COLORS.border}
+          onMouseEnter={e => e.currentTarget.style.borderColor = COLORS.textMuted}
+          onMouseLeave={e => e.currentTarget.style.borderColor = COLORS.border}
           >See pricing</button>
         </div>
 
-        {/* Live counter */}
-        <div style={{
-          marginTop: 64, display: "flex", gap: 48, justifyContent: "center", flexWrap: "wrap",
-        }}>
+        <div style={{ marginTop: 64, display: "flex", gap: 48, justifyContent: "center", flexWrap: "wrap" }}>
           {[
             { num: "2.4M+", label: "Leads scraped" },
             { num: "< 30s", label: "Per search" },
@@ -175,6 +210,8 @@ function Hero({ setPage }) {
     </section>
   );
 }
+
+// ─── HOW IT WORKS ───
 
 function HowItWorks() {
   const steps = [
@@ -205,8 +242,7 @@ function HowItWorks() {
           >
             <div style={{
               fontFamily: "'Space Mono', monospace", fontSize: 48, fontWeight: 700,
-              color: COLORS.accentDim.replace("0.1", "0.15"), marginBottom: 20,
-              WebkitTextStroke: `1px rgba(255,107,0,0.3)`,
+              color: "transparent", marginBottom: 20, WebkitTextStroke: `1px rgba(255,107,0,0.3)`,
             }}>{step.num}</div>
             <h3 style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 22, marginBottom: 12 }}>{step.title}</h3>
             <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: 15, color: COLORS.textMuted, lineHeight: 1.7 }}>{step.desc}</p>
@@ -217,15 +253,17 @@ function HowItWorks() {
   );
 }
 
-function Pricing({ setPage }) {
+// ─── PRICING ───
+
+function Pricing({ onBuyCredits }) {
   const plans = [
-    { name: "Starter", credits: "500", price: "49", perLead: "0.098", popular: false },
-    { name: "Growth", credits: "2,000", price: "149", perLead: "0.075", popular: true },
-    { name: "Agency", credits: "5,000", price: "299", perLead: "0.060", popular: false },
+    { id: "starter", name: "Starter", credits: "500", price: "49", perLead: "0.098", popular: false },
+    { id: "growth",  name: "Growth",  credits: "2,000", price: "149", perLead: "0.075", popular: true },
+    { id: "agency",  name: "Agency",  credits: "5,000", price: "299", perLead: "0.060", popular: false },
   ];
 
   return (
-    <section style={{
+    <section id="pricing" style={{
       padding: "100px 40px", maxWidth: 1100, margin: "0 auto",
       borderTop: `1px solid ${COLORS.border}`,
     }}>
@@ -254,8 +292,8 @@ function Pricing({ setPage }) {
               <div style={{
                 position: "absolute", top: -12, left: "50%", transform: "translateX(-50%)",
                 background: COLORS.accent, color: "#000", padding: "4px 16px", borderRadius: 100,
-                fontFamily: "'Space Mono', monospace", fontSize: 11, fontWeight: 700, textTransform: "uppercase",
-                letterSpacing: "1px",
+                fontFamily: "'Space Mono', monospace", fontSize: 11, fontWeight: 700,
+                textTransform: "uppercase", letterSpacing: "1px",
               }}>Most popular</div>
             )}
             <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: 14, color: COLORS.textMuted, fontWeight: 600, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 16 }}>{plan.name}</div>
@@ -277,7 +315,7 @@ function Pricing({ setPage }) {
               ))}
             </ul>
 
-            <button onClick={() => setPage("app")} style={{
+            <button onClick={() => onBuyCredits(plan.id)} style={{
               width: "100%", padding: "14px 0", borderRadius: 10, border: "none",
               background: plan.popular ? COLORS.accent : "transparent",
               color: plan.popular ? "#000" : COLORS.text,
@@ -285,8 +323,8 @@ function Pricing({ setPage }) {
               fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 15, cursor: "pointer",
               transition: "all 0.2s",
             }}
-            onMouseEnter={e => e.target.style.opacity = "0.85"}
-            onMouseLeave={e => e.target.style.opacity = "1"}
+            onMouseEnter={e => e.currentTarget.style.opacity = "0.85"}
+            onMouseLeave={e => e.currentTarget.style.opacity = "1"}
             >Get {plan.name}</button>
           </div>
         ))}
@@ -294,6 +332,8 @@ function Pricing({ setPage }) {
     </section>
   );
 }
+
+// ─── FAQ ───
 
 function FAQ() {
   const [open, setOpen] = useState(null);
@@ -321,7 +361,7 @@ function FAQ() {
             {item.q}
             <span style={{
               transform: open === i ? "rotate(45deg)" : "rotate(0deg)",
-              transition: "transform 0.3s", fontSize: 22, color: COLORS.textMuted,
+              transition: "transform 0.3s", fontSize: 22, color: COLORS.textMuted, flexShrink: 0, marginLeft: 16,
             }}>+</span>
           </div>
           {open === i && (
@@ -335,6 +375,8 @@ function FAQ() {
     </section>
   );
 }
+
+// ─── FOOTER ───
 
 function Footer() {
   return (
@@ -359,29 +401,110 @@ function Footer() {
 
 // ─── APP / SEARCH PAGE ───
 
-function AppPage({ setPage }) {
+function AppPage({ setPage, credits, onUseCredits, onBuyCredits }) {
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingMsg, setLoadingMsg] = useState("Scraping Google Maps...");
   const [results, setResults] = useState(null);
   const [searched, setSearched] = useState(false);
+  const [error, setError] = useState(null);
+  const pollRef = useRef(null);
+  const timeoutRef = useRef(null);
 
-  const handleSearch = () => {
+  // Clean up polling on unmount
+  useEffect(() => {
+    return () => {
+      clearInterval(pollRef.current);
+      clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
+  const handleSearch = async () => {
     if (!query.trim() || !location.trim()) return;
+    if (credits === 0) {
+      document.getElementById("buy-credits-prompt")?.scrollIntoView({ behavior: "smooth" });
+      return;
+    }
+
+    // Reset state
+    clearInterval(pollRef.current);
+    clearTimeout(timeoutRef.current);
     setLoading(true);
     setResults(null);
     setSearched(true);
-    // Simulate API call
-    setTimeout(() => {
-      setResults(MOCK_RESULTS);
+    setError(null);
+    setLoadingMsg("Starting search...");
+
+    try {
+      const startRes = await fetch("/api/scrape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: query.trim(), location: location.trim() }),
+      });
+
+      if (!startRes.ok) {
+        const err = await startRes.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to start search");
+      }
+
+      const { runId } = await startRes.json();
+      setLoadingMsg("Scraping Google Maps...");
+
+      // Poll for results every 4 seconds
+      const poll = async () => {
+        try {
+          const res = await fetch(`/api/results?runId=${runId}`);
+          const data = await res.json();
+
+          if (data.status === "success") {
+            clearInterval(pollRef.current);
+            clearTimeout(timeoutRef.current);
+            setResults(data.results);
+            setLoading(false);
+            onUseCredits(data.results.length);
+          } else if (data.status === "error") {
+            clearInterval(pollRef.current);
+            clearTimeout(timeoutRef.current);
+            setLoading(false);
+            setError("Scraping failed. Please try a different search.");
+          }
+          // If 'pending', keep polling
+        } catch {
+          clearInterval(pollRef.current);
+          clearTimeout(timeoutRef.current);
+          setLoading(false);
+          setError("Connection error. Please try again.");
+        }
+      };
+
+      pollRef.current = setInterval(poll, 4000);
+
+      // Time out after 3 minutes
+      timeoutRef.current = setTimeout(() => {
+        clearInterval(pollRef.current);
+        setLoading(false);
+        setError("Search timed out. Please try again.");
+      }, 180000);
+
+    } catch (err) {
       setLoading(false);
-    }, 2200);
+      setError(err.message || "Something went wrong. Please try again.");
+    }
   };
 
   const downloadCSV = () => {
     if (!results) return;
-    const headers = ["Name", "Phone", "Email", "Address", "Rating", "Reviews"];
-    const rows = results.map(r => [r.name, r.phone, r.email, r.address, r.rating, r.reviews]);
+    const headers = ["Name", "Phone", "Email", "Address", "Rating", "Reviews", "Website"];
+    const rows = results.map(r => [
+      `"${(r.name || "").replace(/"/g, '""')}"`,
+      `"${(r.phone || "").replace(/"/g, '""')}"`,
+      `"${(r.email || "").replace(/"/g, '""')}"`,
+      `"${(r.address || "").replace(/"/g, '""')}"`,
+      r.rating,
+      r.reviews,
+      `"${(r.website || "").replace(/"/g, '""')}"`,
+    ]);
     const csv = [headers, ...rows].map(r => r.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -393,20 +516,26 @@ function AppPage({ setPage }) {
   };
 
   return (
-    <div style={{ minHeight: "100vh", paddingTop: 96, padding: "96px 40px 60px" }}>
-      <div style={{ maxWidth: 900, margin: "0 auto" }}>
+    <div style={{ minHeight: "100vh", padding: "96px 40px 60px" }}>
+      <div style={{ maxWidth: 960, margin: "0 auto" }}>
+
         {/* Search bar */}
         <div style={{
           background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 16,
-          padding: 32, marginBottom: 32, animation: "fadeUp 0.5s ease-out",
+          padding: 32, marginBottom: 24, animation: "fadeUp 0.5s ease-out",
         }}>
-          <h2 style={{
-            fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 28, marginBottom: 8,
-            letterSpacing: "-0.5px",
-          }}>Pull leads</h2>
-          <p style={{
-            fontFamily: "'Outfit', sans-serif", fontSize: 14, color: COLORS.textMuted, marginBottom: 28,
-          }}>Enter a business type and location to scrape Google Maps</p>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+            <div>
+              <h2 style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 28, letterSpacing: "-0.5px", marginBottom: 4 }}>Pull leads</h2>
+              <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: 14, color: COLORS.textMuted }}>Enter a business type and location to scrape Google Maps</p>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 20, fontWeight: 700, color: credits > 0 ? COLORS.accent : COLORS.red }}>
+                {credits.toLocaleString()}
+              </div>
+              <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: 11, color: COLORS.textDim, textTransform: "uppercase", letterSpacing: "1px" }}>credits left</div>
+            </div>
+          </div>
 
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <div style={{ flex: 1, minWidth: 200 }}>
@@ -442,12 +571,23 @@ function AppPage({ setPage }) {
                 cursor: loading ? "wait" : "pointer", opacity: loading ? 0.7 : 1, transition: "all 0.2s",
                 whiteSpace: "nowrap",
               }}
-              onMouseEnter={e => !loading && (e.target.style.background = COLORS.accentHover)}
-              onMouseLeave={e => e.target.style.background = COLORS.accent}
+              onMouseEnter={e => !loading && (e.currentTarget.style.background = COLORS.accentHover)}
+              onMouseLeave={e => e.currentTarget.style.background = COLORS.accent}
               >{loading ? "Scraping..." : "Scrape →"}</button>
             </div>
           </div>
         </div>
+
+        {/* Error */}
+        {error && (
+          <div style={{
+            background: COLORS.redDim, border: `1px solid rgba(239,68,68,0.25)`, borderRadius: 12,
+            padding: "16px 24px", marginBottom: 24, fontFamily: "'Outfit', sans-serif", fontSize: 14,
+            color: COLORS.red, display: "flex", alignItems: "center", gap: 10,
+          }}>
+            <span style={{ fontSize: 18 }}>⚠</span> {error}
+          </div>
+        )}
 
         {/* Loading state */}
         {loading && (
@@ -462,9 +602,12 @@ function AppPage({ setPage }) {
             }}>
               <span style={{ fontSize: 24 }}>⚡</span>
             </div>
-            <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: 18, fontWeight: 600, marginBottom: 8 }}>Scraping Google Maps...</div>
+            <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: 18, fontWeight: 600, marginBottom: 8 }}>{loadingMsg}</div>
             <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, color: COLORS.textDim }}>
-              Pulling {query} in {location}
+              {query} · {location}
+            </div>
+            <div style={{ marginTop: 20, fontFamily: "'Outfit', sans-serif", fontSize: 13, color: COLORS.textDim }}>
+              Google Maps scraping takes 30–60 seconds. Hang tight.
             </div>
           </div>
         )}
@@ -472,7 +615,7 @@ function AppPage({ setPage }) {
         {/* Results */}
         {results && (
           <div style={{ animation: "fadeUp 0.5s ease-out" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
               <div>
                 <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: 16, fontWeight: 600 }}>{results.length} leads found</span>
                 <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, color: COLORS.textDim, marginLeft: 12 }}>
@@ -495,7 +638,7 @@ function AppPage({ setPage }) {
             }}>
               {/* Table header */}
               <div style={{
-                display: "grid", gridTemplateColumns: "2fr 1.2fr 1.5fr 2fr 0.6fr 0.6fr",
+                display: "grid", gridTemplateColumns: "2fr 1.2fr 1.5fr 2fr 0.6fr 0.7fr",
                 padding: "14px 24px", borderBottom: `1px solid ${COLORS.border}`,
                 fontFamily: "'Space Mono', monospace", fontSize: 11, color: COLORS.textDim,
                 textTransform: "uppercase", letterSpacing: "1px",
@@ -506,44 +649,78 @@ function AppPage({ setPage }) {
               {/* Table rows */}
               {results.map((r, i) => (
                 <div key={i} style={{
-                  display: "grid", gridTemplateColumns: "2fr 1.2fr 1.5fr 2fr 0.6fr 0.6fr",
-                  padding: "16px 24px", borderBottom: i < results.length - 1 ? `1px solid ${COLORS.border}` : "none",
+                  display: "grid", gridTemplateColumns: "2fr 1.2fr 1.5fr 2fr 0.6fr 0.7fr",
+                  padding: "16px 24px",
+                  borderBottom: i < results.length - 1 ? `1px solid ${COLORS.border}` : "none",
                   fontFamily: "'Outfit', sans-serif", fontSize: 14, alignItems: "center",
-                  animation: `slideIn 0.3s ease-out ${i * 0.05}s both`,
+                  animation: `slideIn 0.3s ease-out ${i * 0.04}s both`,
                   transition: "background 0.15s",
                 }}
                 onMouseEnter={e => e.currentTarget.style.background = COLORS.surfaceHover}
                 onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                 >
-                  <span style={{ fontWeight: 600 }}>{r.name}</span>
-                  <span style={{ color: COLORS.textMuted }}>{r.phone}</span>
-                  <span style={{ color: COLORS.accent, fontSize: 13 }}>{r.email}</span>
-                  <span style={{ color: COLORS.textMuted, fontSize: 13 }}>{r.address}</span>
-                  <span style={{ color: "#facc15", fontFamily: "'Space Mono', monospace", fontSize: 13 }}>★ {r.rating}</span>
-                  <span style={{ color: COLORS.textMuted, fontFamily: "'Space Mono', monospace", fontSize: 13 }}>{r.reviews}</span>
+                  <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
+                  <span style={{ color: COLORS.textMuted, fontSize: 13 }}>{r.phone || "—"}</span>
+                  <span style={{ color: COLORS.accent, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.email || "—"}</span>
+                  <span style={{ color: COLORS.textMuted, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.address}</span>
+                  <span style={{ color: "#facc15", fontFamily: "'Space Mono', monospace", fontSize: 13 }}>{r.rating !== "0.0" ? `★ ${r.rating}` : "—"}</span>
+                  <span style={{ color: COLORS.textMuted, fontFamily: "'Space Mono', monospace", fontSize: 13 }}>{r.reviews || "—"}</span>
                 </div>
               ))}
-            </div>
-
-            <div style={{
-              marginTop: 16, padding: 16, borderRadius: 10, background: COLORS.accentDim,
-              border: `1px solid rgba(255,107,0,0.15)`,
-              fontFamily: "'Space Mono', monospace", fontSize: 12, color: COLORS.accent, textAlign: "center",
-            }}>
-              ⚡ This is a demo with sample data. Connect your Apify API key to scrape live Google Maps results.
             </div>
           </div>
         )}
 
         {/* Empty state */}
-        {!loading && !results && searched === false && (
+        {!loading && !results && !error && !searched && (
           <div style={{
             background: COLORS.surface, border: `1px dashed ${COLORS.border}`, borderRadius: 16,
             padding: 64, textAlign: "center", animation: "fadeUp 0.5s ease-out 0.2s both",
           }}>
             <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}>🔍</div>
             <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: 18, fontWeight: 600, color: COLORS.textMuted, marginBottom: 8 }}>Ready to scrape</div>
-            <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: 14, color: COLORS.textDim }}>Enter a business type and location above to pull leads</div>
+            <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: 14, color: COLORS.textDim }}>
+              {credits > 0
+                ? "Enter a business type and location above to pull leads"
+                : "Buy credits below to start scraping real Google Maps data"}
+            </div>
+          </div>
+        )}
+
+        {/* Buy credits prompt (shown when out of credits) */}
+        {credits === 0 && (
+          <div id="buy-credits-prompt" style={{
+            marginTop: 32, background: COLORS.surface, border: `1px solid ${COLORS.border}`,
+            borderRadius: 16, padding: 40, animation: "fadeUp 0.6s ease-out 0.3s both",
+          }}>
+            <h3 style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 24, marginBottom: 8, letterSpacing: "-0.5px" }}>
+              Get your credits
+            </h3>
+            <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: 15, color: COLORS.textMuted, marginBottom: 32 }}>
+              One credit = one lead. Credits never expire. No subscriptions.
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
+              {[
+                { id: "starter", name: "Starter", credits: "500", price: "$49" },
+                { id: "growth",  name: "Growth",  credits: "2,000", price: "$149" },
+                { id: "agency",  name: "Agency",  credits: "5,000", price: "$299" },
+              ].map(plan => (
+                <button key={plan.id} onClick={() => onBuyCredits(plan.id)} style={{
+                  background: plan.id === "growth" ? COLORS.accent : COLORS.bg,
+                  color: plan.id === "growth" ? "#000" : COLORS.text,
+                  border: `1px solid ${plan.id === "growth" ? COLORS.accent : COLORS.border}`,
+                  borderRadius: 12, padding: "20px 24px", cursor: "pointer",
+                  fontFamily: "'Outfit', sans-serif", textAlign: "left", transition: "all 0.2s",
+                }}
+                onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
+                onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}
+                >
+                  <div style={{ fontWeight: 800, fontSize: 22, marginBottom: 4 }}>{plan.price}</div>
+                  <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, opacity: 0.8 }}>{plan.credits} credits</div>
+                  <div style={{ fontSize: 13, opacity: 0.7, marginTop: 4 }}>{plan.name}</div>
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -555,23 +732,95 @@ function AppPage({ setPage }) {
 
 export default function LeadPulp() {
   const [page, setPage] = useState("home");
+  const [toast, setToast] = useState(null);
+
+  const [credits, setCredits] = useState(() => {
+    try { return parseInt(localStorage.getItem("lp_credits") || "0", 10); }
+    catch { return 0; }
+  });
+
+  // Persist credits to localStorage
+  useEffect(() => {
+    try { localStorage.setItem("lp_credits", String(credits)); } catch {}
+  }, [credits]);
+
+  // Handle Stripe redirect on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("payment") !== "success") return;
+
+    const sessionId = params.get("session_id");
+    if (!sessionId) return;
+
+    // Remove query params from URL immediately
+    window.history.replaceState({}, "", "/");
+
+    fetch(`/api/verify-payment?session_id=${sessionId}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          setCredits(prev => prev + data.credits);
+          setPage("app");
+          setToast({ type: "success", message: `${data.credits.toLocaleString()} credits added! Start scraping.` });
+        } else {
+          setToast({ type: "error", message: "Payment verification failed. Please contact support." });
+        }
+      })
+      .catch(() => {
+        setToast({ type: "error", message: "Could not verify payment. Please contact support." });
+      });
+  }, []);
+
+  const onUseCredits = (amount) => {
+    setCredits(prev => Math.max(0, prev - amount));
+  };
+
+  const onBuyCredits = async (plan) => {
+    try {
+      const res = await fetch("/api/create-checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      const { url } = await res.json();
+      window.location.href = url;
+    } catch {
+      setToast({ type: "error", message: "Could not open checkout. Please try again." });
+    }
+  };
 
   return (
     <div style={{ background: COLORS.bg, minHeight: "100vh", color: COLORS.text }}>
       <style>{fonts}{baseStyles}</style>
-      <Nav page={page} setPage={setPage} />
+      <Nav page={page} setPage={setPage} credits={credits} />
 
       {page === "home" && (
         <>
           <Hero setPage={setPage} />
           <HowItWorks />
-          <Pricing setPage={setPage} />
+          <Pricing onBuyCredits={onBuyCredits} />
           <FAQ />
           <Footer />
         </>
       )}
 
-      {page === "app" && <AppPage setPage={setPage} />}
+      {page === "app" && (
+        <AppPage
+          setPage={setPage}
+          credits={credits}
+          onUseCredits={onUseCredits}
+          onBuyCredits={onBuyCredits}
+        />
+      )}
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }
