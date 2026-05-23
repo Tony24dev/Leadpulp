@@ -10,7 +10,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing runId' });
   }
 
-  const apiKey = process.env.APIFY_API_KEY;
+  const apiKey = process.env.APIFY_API_TOKEN;
 
   try {
     const runRes = await fetch(
