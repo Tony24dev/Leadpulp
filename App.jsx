@@ -92,7 +92,7 @@ function Nav({ page, setPage, credits }) {
         </span>
       </div>
       <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
-        <NavLink label="How it works" onClick={() => setPage("home")} />
+        <NavLink label="How it works" onClick={() => { setPage("home"); setTimeout(() => document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" }), 100); }} />
         <NavLink label="Pricing" onClick={() => { setPage("home"); setTimeout(() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" }), 100); }} />
         {credits > 0 && (
           <div style={{
@@ -221,7 +221,7 @@ function HowItWorks() {
   ];
 
   return (
-    <section style={{ padding: "100px 40px", maxWidth: 1100, margin: "0 auto" }}>
+    <section id="how-it-works" style={{ padding: "100px 40px", maxWidth: 1100, margin: "0 auto" }}>
       <h2 style={{
         fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 40, textAlign: "center",
         letterSpacing: "-1px", marginBottom: 16,
