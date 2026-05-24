@@ -25,7 +25,8 @@ export default async function handler(req, res) {
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          searchStringsArray: [`${query} in ${location}`],
+          searchStringsArray: [query],
+          locationQuery: location,
           maxCrawledPlacesPerSearch: 50,
           language: 'en',
           exportPlaceUrls: false,
