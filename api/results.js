@@ -1,9 +1,32 @@
 // Checks an Apify run's status. Returns results when the run succeeds,
 // deducts 1 credit (exactly once via claim lock), returns fresh balance.
-import { redis } from './_redis.js';
 
 const creditKey = (email) => `credits:${email.toLowerCase().trim()}`;
 const claimKey  = (runId) => `claimed:${runId}`;
+
+async function redisGet(key) {
+  const url   = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const res   = await fetch(`${url}/get/${encodeURIComponent(key)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const { result } = await res.json();
+  return result;
+}
+
+async function redisSet(key, value, opts = {}) {
+  const url   = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const parts = [url, 'set', encodeURIComponent(key), encodeURIComponent(String(value))];
+  if (opts.nx) parts.push('nx');
+  if (opts.ex) parts.push('ex', opts.ex);
+  const res = await fetch(parts.join('/'), {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const { result } = await res.json();
+  return result; // 'OK' | null
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -60,24 +83,17 @@ export default async function handler(req, res) {
       }))
       .filter(r => r.name);
 
-    // Deduct 1 credit exactly once using a SET NX claim lock
+    // Deduct 1 credit exactly once using SET NX claim lock
     let credits = null;
     if (email && email.includes('@')) {
-      const key   = creditKey(email);
-      const claim = claimKey(runId);
-
-      // SET NX returns 'OK' if key was set (first time), null if already exists
-      const locked = await redis.set(claim, '1', { nx: true, ex: 60 * 60 * 24 * 7 }); // 7 day TTL
-
+      const locked = await redisSet(claimKey(runId), '1', { nx: true, ex: 60 * 60 * 24 * 7 });
       if (locked === 'OK') {
-        // We won the lock — deduct 1 credit
-        const current = Number(await redis.get(key) ?? 0);
+        const current = Number(await redisGet(creditKey(email)) ?? 0);
         const newBalance = Math.max(0, current - 1);
-        await redis.set(key, newBalance);
+        await redisSet(creditKey(email), newBalance);
         credits = newBalance;
       } else {
-        // Already claimed — just return current balance
-        credits = Number(await redis.get(key) ?? 0);
+        credits = Number(await redisGet(creditKey(email)) ?? 0);
       }
     }
 

@@ -1,8 +1,31 @@
 import Stripe from 'stripe';
-import { redis } from './_redis.js';
 
 const creditKey = (email) => `credits:${email.toLowerCase().trim()}`;
 const paidKey   = (sessionId) => `paid:${sessionId}`;
+
+async function redisGet(key) {
+  const url   = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const res   = await fetch(`${url}/get/${encodeURIComponent(key)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const { result } = await res.json();
+  return result;
+}
+
+async function redisSet(key, value, opts = {}) {
+  const url   = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const parts = [url, 'set', encodeURIComponent(key), encodeURIComponent(String(value))];
+  if (opts.nx) parts.push('nx');
+  if (opts.ex) parts.push('ex', opts.ex);
+  const res = await fetch(parts.join('/'), {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const { result } = await res.json();
+  return result;
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -23,24 +46,19 @@ export default async function handler(req, res) {
       return res.json({ success: false });
     }
 
-    const credits     = parseInt(session.metadata.credits, 10);
-    const plan        = session.metadata.plan;
-    const email       = session.metadata.email || session.customer_details?.email || '';
+    const credits = parseInt(session.metadata.credits, 10);
+    const plan    = session.metadata.plan;
+    const email   = session.metadata.email || session.customer_details?.email || '';
 
-    // Add credits exactly once using a claim lock
     let newBalance = null;
     if (email && email.includes('@')) {
-      const claim = paidKey(session_id);
-
-      // SET NX returns 'OK' only on first call — prevents double credit
-      const locked = await redis.set(claim, '1', { nx: true, ex: 60 * 60 * 24 * 30 }); // 30 day TTL
-
+      const locked = await redisSet(paidKey(session_id), '1', { nx: true, ex: 60 * 60 * 24 * 30 });
       if (locked === 'OK') {
-        const current = Number(await redis.get(creditKey(email)) ?? 0);
+        const current = Number(await redisGet(creditKey(email)) ?? 0);
         newBalance = current + credits;
-        await redis.set(creditKey(email), newBalance);
+        await redisSet(creditKey(email), newBalance);
       } else {
-        newBalance = Number(await redis.get(creditKey(email)) ?? 0);
+        newBalance = Number(await redisGet(creditKey(email)) ?? 0);
       }
     }
 

@@ -1,13 +1,36 @@
 import Stripe from 'stripe';
 import { Resend } from 'resend';
-import { redis } from './_redis.js';
-
-const creditKey = (email) => `credits:${email.toLowerCase().trim()}`;
-const paidKey   = (sessionId) => `paid:${sessionId}`;
 
 // Vercel doesn't parse the raw body automatically — we need the raw buffer
 // to verify Stripe's webhook signature.
 export const config = { api: { bodyParser: false } };
+
+const creditKey = (email) => `credits:${email.toLowerCase().trim()}`;
+const paidKey   = (sessionId) => `paid:${sessionId}`;
+
+async function redisGet(key) {
+  const url   = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const res   = await fetch(`${url}/get/${encodeURIComponent(key)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const { result } = await res.json();
+  return result;
+}
+
+async function redisSet(key, value, opts = {}) {
+  const url   = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const parts = [url, 'set', encodeURIComponent(key), encodeURIComponent(String(value))];
+  if (opts.nx) parts.push('nx');
+  if (opts.ex) parts.push('ex', opts.ex);
+  const res = await fetch(parts.join('/'), {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const { result } = await res.json();
+  return result;
+}
 
 async function getRawBody(req) {
   return new Promise((resolve, reject) => {
@@ -45,25 +68,24 @@ export default async function handler(req, res) {
       return res.json({ received: true });
     }
 
-    const plan      = session.metadata?.plan     || 'unknown';
-    const credits   = session.metadata?.credits  || '?';
-    const amount    = (session.amount_total / 100).toFixed(2);
-    const currency  = (session.currency || 'usd').toUpperCase();
-    const customer  = session.metadata?.email || session.customer_details?.email || 'unknown';
+    const plan     = session.metadata?.plan    || 'unknown';
+    const credits  = session.metadata?.credits || '?';
+    const amount   = (session.amount_total / 100).toFixed(2);
+    const currency = (session.currency || 'usd').toUpperCase();
+    const customer = session.metadata?.email || session.customer_details?.email || 'unknown';
+    const date     = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' });
 
     // Add credits to Redis (idempotent — same lock key as verify-payment)
     if (customer !== 'unknown' && customer.includes('@')) {
-      const claim = paidKey(session.id);
-      const locked = await redis.set(claim, '1', { nx: true, ex: 60 * 60 * 24 * 30 });
+      const locked = await redisSet(paidKey(session.id), '1', { nx: true, ex: 60 * 60 * 24 * 30 });
       if (locked === 'OK') {
-        const current = Number(await redis.get(creditKey(customer)) ?? 0);
-        await redis.set(creditKey(customer), current + parseInt(credits, 10));
+        const current = Number(await redisGet(creditKey(customer)) ?? 0);
+        await redisSet(creditKey(customer), current + parseInt(credits, 10));
         console.log(`Credits added: ${credits} → ${customer}`);
       } else {
         console.log(`Credits already applied for session ${session.id}`);
       }
     }
-    const date      = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' });
 
     const planLabel = { starter: 'Starter', growth: 'Growth', agency: 'Agency' }[plan] || plan;
 
@@ -78,10 +100,8 @@ export default async function handler(req, res) {
               <div style="width: 36px; height: 36px; background: #FF6B00; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #000; font-size: 14px;">LP</div>
               <span style="font-weight: 700; font-size: 20px;">Lead<span style="color: #FF6B00;">Pulp</span></span>
             </div>
-
             <h1 style="font-size: 24px; margin: 0 0 6px; font-weight: 800;">New sale! 🎉</h1>
             <p style="color: #888; margin: 0 0 28px; font-size: 14px;">${date} EST</p>
-
             <div style="background: #141414; border: 1px solid #2a2a2a; border-radius: 10px; padding: 20px; margin-bottom: 20px;">
               <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
                 <span style="color: #888; font-size: 13px;">Plan</span>
@@ -101,18 +121,13 @@ export default async function handler(req, res) {
                 <span style="font-size: 13px;">${customer}</span>
               </div>
             </div>
-
-            <p style="color: #555; font-size: 12px; text-align: center; margin: 0;">
-              LeadPulp · leadpulp.com
-            </p>
+            <p style="color: #555; font-size: 12px; text-align: center; margin: 0;">LeadPulp · leadpulp.com</p>
           </div>
         `,
       });
-
       console.log(`Sale notification sent for ${planLabel} — $${amount}`);
     } catch (emailErr) {
       console.error('Failed to send sale notification:', emailErr);
-      // Don't fail the webhook — Stripe will retry if we return an error
     }
   }
 

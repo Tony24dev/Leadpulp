@@ -1,7 +1,16 @@
 // Checks server-side credits, then starts an Apify run.
-import { redis } from './_redis.js';
 
 const creditKey = (email) => `credits:${email.toLowerCase().trim()}`;
+
+async function redisGet(key) {
+  const url   = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const res   = await fetch(`${url}/get/${encodeURIComponent(key)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const { result } = await res.json();
+  return result;
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -17,7 +26,7 @@ export default async function handler(req, res) {
   }
 
   // Check server-side credits
-  const balance = await redis.get(creditKey(email));
+  const balance = await redisGet(creditKey(email));
   if (balance === null || Number(balance) <= 0) {
     return res.status(402).json({ error: 'No credits remaining', credits: 0 });
   }
