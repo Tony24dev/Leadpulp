@@ -422,8 +422,17 @@ function Footer({ isMobile }) {
         }}>LP</div>
         <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600, fontSize: 15, color: COLORS.textMuted }}>LeadPulp</span>
       </div>
-      <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: 13, color: COLORS.textDim }}>
-        © 2026 LeadPulp. All rights reserved.
+      <div style={{ display: "flex", flexDirection: "column", alignItems: isMobile ? "center" : "flex-end", gap: 6 }}>
+        <a href="mailto:hello@leadpulp.com" style={{
+          fontFamily: "'Outfit', sans-serif", fontSize: 13, color: COLORS.textMuted,
+          textDecoration: "none",
+        }}
+          onMouseEnter={e => e.target.style.color = COLORS.accent}
+          onMouseLeave={e => e.target.style.color = COLORS.textMuted}
+        >hello@leadpulp.com</a>
+        <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: 12, color: COLORS.textDim }}>
+          © 2026 LeadPulp. All rights reserved.
+        </div>
       </div>
     </footer>
   );
