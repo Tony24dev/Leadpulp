@@ -1,8 +1,7 @@
 // GET  /api/credits?email=xxx  → returns current balance
 // POST /api/credits             → init email with 3 free credits (only on first visit)
-import { Redis } from '@upstash/redis';
+import { redis } from './_redis.js';
 
-const redis = Redis.fromEnv();
 const FREE_CREDITS = 3;
 const creditKey = (email) => `credits:${email.toLowerCase().trim()}`;
 

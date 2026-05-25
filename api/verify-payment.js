@@ -1,7 +1,6 @@
 import Stripe from 'stripe';
-import { Redis } from '@upstash/redis';
+import { redis } from './_redis.js';
 
-const redis = Redis.fromEnv();
 const creditKey = (email) => `credits:${email.toLowerCase().trim()}`;
 const paidKey   = (sessionId) => `paid:${sessionId}`;
 

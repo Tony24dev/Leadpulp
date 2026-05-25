@@ -1,10 +1,9 @@
 // Checks an Apify run's status. Returns results when the run succeeds,
 // deducts 1 credit (exactly once via claim lock), returns fresh balance.
-import { Redis } from '@upstash/redis';
+import { redis } from './_redis.js';
 
-const redis = Redis.fromEnv();
-const creditKey  = (email) => `credits:${email.toLowerCase().trim()}`;
-const claimKey   = (runId) => `claimed:${runId}`;
+const creditKey = (email) => `credits:${email.toLowerCase().trim()}`;
+const claimKey  = (runId) => `claimed:${runId}`;
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {

@@ -1,7 +1,6 @@
 // Checks server-side credits, then starts an Apify run.
-import { Redis } from '@upstash/redis';
+import { redis } from './_redis.js';
 
-const redis = Redis.fromEnv();
 const creditKey = (email) => `credits:${email.toLowerCase().trim()}`;
 
 export default async function handler(req, res) {
