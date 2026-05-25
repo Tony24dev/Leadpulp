@@ -1,5 +1,10 @@
 import Stripe from 'stripe';
 import { Resend } from 'resend';
+import { Redis } from '@upstash/redis';
+
+const redis = Redis.fromEnv();
+const creditKey = (email) => `credits:${email.toLowerCase().trim()}`;
+const paidKey   = (sessionId) => `paid:${sessionId}`;
 
 // Vercel doesn't parse the raw body automatically — we need the raw buffer
 // to verify Stripe's webhook signature.
@@ -45,7 +50,20 @@ export default async function handler(req, res) {
     const credits   = session.metadata?.credits  || '?';
     const amount    = (session.amount_total / 100).toFixed(2);
     const currency  = (session.currency || 'usd').toUpperCase();
-    const customer  = session.customer_details?.email || 'unknown';
+    const customer  = session.metadata?.email || session.customer_details?.email || 'unknown';
+
+    // Add credits to Redis (idempotent — same lock key as verify-payment)
+    if (customer !== 'unknown' && customer.includes('@')) {
+      const claim = paidKey(session.id);
+      const locked = await redis.set(claim, '1', { nx: true, ex: 60 * 60 * 24 * 30 });
+      if (locked === 'OK') {
+        const current = Number(await redis.get(creditKey(customer)) ?? 0);
+        await redis.set(creditKey(customer), current + parseInt(credits, 10));
+        console.log(`Credits added: ${credits} → ${customer}`);
+      } else {
+        console.log(`Credits already applied for session ${session.id}`);
+      }
+    }
     const date      = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' });
 
     const planLabel = { starter: 'Starter', growth: 'Growth', agency: 'Agency' }[plan] || plan;

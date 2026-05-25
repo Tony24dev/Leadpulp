@@ -82,7 +82,7 @@ function Toast({ message, type, onClose }) {
 }
 
 // ─── NAV ───
-function Nav({ page, setPage, credits, isMobile }) {
+function Nav({ page, setPage, credits, email, isMobile }) {
   return (
     <nav style={{
       position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
@@ -111,7 +111,7 @@ function Nav({ page, setPage, credits, isMobile }) {
             <NavLink label="Pricing" onClick={() => { setPage("home"); setTimeout(() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" }), 100); }} />
           </>
         )}
-        {credits > 0 && (
+        {email && credits > 0 && (
           <div style={{
             fontFamily: "'Space Mono', monospace", fontSize: 12, color: COLORS.accent,
             background: COLORS.accentDim, padding: "4px 10px", borderRadius: 6,
@@ -430,7 +430,11 @@ function Footer({ isMobile }) {
 }
 
 // ─── APP / SEARCH PAGE ───
-function AppPage({ setPage, credits, onUseCredits, onBuyCredits, isMobile }) {
+function AppPage({ setPage, email, onEmailSet, credits, onCreditsUpdate, onBuyCredits, isMobile }) {
+  const [emailInput, setEmailInput] = useState("");
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailError, setEmailError] = useState("");
+
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState("");
   const [loading, setLoading] = useState(false);
@@ -448,9 +452,33 @@ function AppPage({ setPage, credits, onUseCredits, onBuyCredits, isMobile }) {
     };
   }, []);
 
+  // Email registration
+  const handleEmailSubmit = async () => {
+    const trimmed = emailInput.trim().toLowerCase();
+    if (!trimmed || !trimmed.includes("@")) {
+      setEmailError("Please enter a valid email address.");
+      return;
+    }
+    setEmailLoading(true);
+    setEmailError("");
+    try {
+      const res = await fetch("/api/credits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmed }),
+      });
+      const data = await res.json();
+      onEmailSet(trimmed, data.credits ?? 0, data.isNew);
+    } catch {
+      setEmailError("Could not connect. Please try again.");
+    }
+    setEmailLoading(false);
+  };
+
   const handleSearch = async () => {
     if (!query.trim() || !location.trim()) return;
-    if (credits === 0) {
+    if (!email) return;
+    if (credits <= 0) {
       document.getElementById("buy-credits-prompt")?.scrollIntoView({ behavior: "smooth" });
       return;
     }
@@ -467,11 +495,16 @@ function AppPage({ setPage, credits, onUseCredits, onBuyCredits, isMobile }) {
       const startRes = await fetch("/api/scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: query.trim(), location: location.trim() }),
+        body: JSON.stringify({ query: query.trim(), location: location.trim(), email }),
       });
 
       if (!startRes.ok) {
         const err = await startRes.json().catch(() => ({}));
+        if (startRes.status === 402) {
+          setLoading(false);
+          setError("No credits remaining. Buy more credits to continue.");
+          return;
+        }
         throw new Error(err.error || "Failed to start search");
       }
 
@@ -480,7 +513,7 @@ function AppPage({ setPage, credits, onUseCredits, onBuyCredits, isMobile }) {
 
       const poll = async () => {
         try {
-          const res = await fetch(`/api/results?runId=${runId}`);
+          const res = await fetch(`/api/results?runId=${runId}&email=${encodeURIComponent(email)}`);
           const data = await res.json();
 
           if (data.status === "success") {
@@ -488,7 +521,10 @@ function AppPage({ setPage, credits, onUseCredits, onBuyCredits, isMobile }) {
             clearTimeout(timeoutRef.current);
             setResults(data.results);
             setLoading(false);
-            onUseCredits(data.results.length);
+            // Update credits with server-side balance
+            if (data.credits !== null && data.credits !== undefined) {
+              onCreditsUpdate(data.credits);
+            }
           } else if (data.status === "error") {
             clearInterval(pollRef.current);
             clearTimeout(timeoutRef.current);
@@ -549,54 +585,108 @@ function AppPage({ setPage, credits, onUseCredits, onBuyCredits, isMobile }) {
     <div style={{ minHeight: "100vh", padding: isMobile ? "72px 16px 48px" : "96px 40px 60px" }}>
       <div style={{ maxWidth: 960, margin: "0 auto" }}>
 
-        {/* Search card */}
-        <div style={{
-          background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 16,
-          padding: isMobile ? 20 : 32, marginBottom: 16,
-        }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-            <div>
-              <h2 style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: isMobile ? 22 : 28, letterSpacing: "-0.5px", marginBottom: 2 }}>Pull leads</h2>
-              <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: 13, color: COLORS.textMuted }}>Business type + location → real leads</p>
+        {/* Email capture — shown until email is set */}
+        {!email && (
+          <div style={{
+            background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 16,
+            padding: isMobile ? 24 : 36, marginBottom: 16, textAlign: "center",
+          }}>
+            <div style={{ fontSize: 32, marginBottom: 16 }}>⚡</div>
+            <h2 style={{
+              fontFamily: "'Outfit', sans-serif", fontWeight: 800,
+              fontSize: isMobile ? 22 : 28, letterSpacing: "-0.5px", marginBottom: 8,
+            }}>Get 3 free searches</h2>
+            <p style={{
+              fontFamily: "'Outfit', sans-serif", fontSize: 14, color: COLORS.textMuted,
+              marginBottom: 24, maxWidth: 400, margin: "0 auto 24px",
+            }}>
+              Enter your email to claim your free credits. No credit card required.
+            </p>
+            <div style={{ display: "flex", gap: 10, maxWidth: 420, margin: "0 auto", flexDirection: isMobile ? "column" : "row" }}>
+              <input
+                value={emailInput}
+                onChange={e => setEmailInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && handleEmailSubmit()}
+                placeholder="you@example.com"
+                type="email"
+                style={{ ...inputStyle, flex: 1 }}
+                onFocus={e => e.target.style.borderColor = COLORS.accent}
+                onBlur={e => e.target.style.borderColor = COLORS.border}
+              />
+              <button
+                onClick={handleEmailSubmit}
+                disabled={emailLoading}
+                style={{
+                  background: COLORS.accent, color: "#000", border: "none", borderRadius: 10,
+                  padding: "13px 24px", fontFamily: "'Outfit', sans-serif", fontWeight: 700,
+                  fontSize: 14, cursor: emailLoading ? "wait" : "pointer",
+                  opacity: emailLoading ? 0.7 : 1, whiteSpace: "nowrap",
+                }}
+              >
+                {emailLoading ? "..." : "Get Free Credits →"}
+              </button>
             </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontFamily: "'Space Mono', monospace", fontSize: isMobile ? 18 : 20, fontWeight: 700, color: credits > 0 ? COLORS.accent : COLORS.red }}>
-                {credits.toLocaleString()}
-              </div>
-              <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: 10, color: COLORS.textDim, textTransform: "uppercase", letterSpacing: "1px" }}>credits</div>
-            </div>
+            {emailError && (
+              <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: 13, color: COLORS.red, marginTop: 10 }}>
+                {emailError}
+              </p>
+            )}
           </div>
+        )}
 
-          {/* Inputs */}
-          <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 10 }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: COLORS.textDim, textTransform: "uppercase", letterSpacing: "1px", display: "block", marginBottom: 6 }}>Business type</label>
-              <input value={query} onChange={e => setQuery(e.target.value)} placeholder="e.g. Dentists, Plumbers..."
-                onKeyDown={e => e.key === "Enter" && handleSearch()}
-                style={inputStyle}
-                onFocus={e => e.target.style.borderColor = COLORS.accent}
-                onBlur={e => e.target.style.borderColor = COLORS.border}
-              />
+        {/* Search card — shown once email is set */}
+        {email && (
+          <div style={{
+            background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 16,
+            padding: isMobile ? 20 : 32, marginBottom: 16,
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <div>
+                <h2 style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: isMobile ? 22 : 28, letterSpacing: "-0.5px", marginBottom: 2 }}>Pull leads</h2>
+                <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: 13, color: COLORS.textMuted }}>Business type + location → real leads</p>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontFamily: "'Space Mono', monospace", fontSize: isMobile ? 18 : 20, fontWeight: 700, color: credits > 0 ? COLORS.accent : COLORS.red }}>
+                  {credits.toLocaleString()}
+                </div>
+                <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: 10, color: COLORS.textDim, textTransform: "uppercase", letterSpacing: "1px" }}>credits</div>
+              </div>
             </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: COLORS.textDim, textTransform: "uppercase", letterSpacing: "1px", display: "block", marginBottom: 6 }}>Location</label>
-              <input value={location} onChange={e => setLocation(e.target.value)} placeholder="e.g. Miami, FL"
-                onKeyDown={e => e.key === "Enter" && handleSearch()}
-                style={inputStyle}
-                onFocus={e => e.target.style.borderColor = COLORS.accent}
-                onBlur={e => e.target.style.borderColor = COLORS.border}
-              />
-            </div>
-            <div style={{ display: "flex", alignItems: "flex-end" }}>
-              <button onClick={handleSearch} disabled={loading} style={{
-                background: COLORS.accent, color: "#000", border: "none", borderRadius: 10,
-                padding: "13px 28px", fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 15,
-                cursor: loading ? "wait" : "pointer", opacity: loading ? 0.7 : 1,
-                width: isMobile ? "100%" : "auto", marginTop: isMobile ? 4 : 0,
-              }}>{loading ? "Scraping..." : "Scrape →"}</button>
+
+            {/* Inputs */}
+            <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: COLORS.textDim, textTransform: "uppercase", letterSpacing: "1px", display: "block", marginBottom: 6 }}>Business type</label>
+                <input value={query} onChange={e => setQuery(e.target.value)} placeholder="e.g. Dentists, Plumbers..."
+                  onKeyDown={e => e.key === "Enter" && handleSearch()}
+                  style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = COLORS.accent}
+                  onBlur={e => e.target.style.borderColor = COLORS.border}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: COLORS.textDim, textTransform: "uppercase", letterSpacing: "1px", display: "block", marginBottom: 6 }}>Location</label>
+                <input value={location} onChange={e => setLocation(e.target.value)} placeholder="e.g. Miami, FL"
+                  onKeyDown={e => e.key === "Enter" && handleSearch()}
+                  style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = COLORS.accent}
+                  onBlur={e => e.target.style.borderColor = COLORS.border}
+                />
+              </div>
+              <div style={{ display: "flex", alignItems: "flex-end" }}>
+                <button onClick={handleSearch} disabled={loading || credits <= 0} style={{
+                  background: credits > 0 ? COLORS.accent : COLORS.border,
+                  color: credits > 0 ? "#000" : COLORS.textDim,
+                  border: "none", borderRadius: 10,
+                  padding: "13px 28px", fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 15,
+                  cursor: loading ? "wait" : credits <= 0 ? "not-allowed" : "pointer",
+                  opacity: loading ? 0.7 : 1,
+                  width: isMobile ? "100%" : "auto", marginTop: isMobile ? 4 : 0,
+                }}>{loading ? "Scraping..." : "Scrape →"}</button>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Error */}
         {error && (
@@ -702,7 +792,7 @@ function AppPage({ setPage, credits, onUseCredits, onBuyCredits, isMobile }) {
         )}
 
         {/* Empty state */}
-        {!loading && !results && !error && !searched && (
+        {email && !loading && !results && !error && !searched && (
           <div style={{
             background: COLORS.surface, border: `1px dashed ${COLORS.border}`, borderRadius: 16,
             padding: isMobile ? 48 : 64, textAlign: "center",
@@ -718,16 +808,16 @@ function AppPage({ setPage, credits, onUseCredits, onBuyCredits, isMobile }) {
         )}
 
         {/* Buy credits prompt */}
-        {credits === 0 && (
+        {email && credits === 0 && (
           <div id="buy-credits-prompt" style={{
             marginTop: 24, background: COLORS.surface, border: `1px solid ${COLORS.border}`,
             borderRadius: 16, padding: isMobile ? 24 : 40,
           }}>
             <h3 style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: isMobile ? 20 : 24, marginBottom: 8, letterSpacing: "-0.5px" }}>
-              Get your credits
+              Get more credits
             </h3>
             <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: 14, color: COLORS.textMuted, marginBottom: 24 }}>
-              One credit = one lead. Credits never expire. No subscriptions.
+              One credit = one search (up to 50 leads). Credits never expire. No subscriptions.
             </p>
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
               {[
@@ -761,21 +851,24 @@ export default function LeadPulp() {
   const [toast, setToast] = useState(null);
   const isMobile = useIsMobile();
 
-  const [credits, setCredits] = useState(() => {
-    try {
-      const stored = localStorage.getItem("lp_credits");
-      if (stored === null) {
-        localStorage.setItem("lp_credits", "3");
-        return 3;
-      }
-      return parseInt(stored, 10);
-    } catch { return 3; }
+  // Email: stored in localStorage (it's just an identifier, not sensitive)
+  const [email, setEmail] = useState(() => {
+    try { return localStorage.getItem("lp_email") || ""; } catch { return ""; }
   });
 
-  useEffect(() => {
-    try { localStorage.setItem("lp_credits", String(credits)); } catch {}
-  }, [credits]);
+  // Credits: always from server (Redis), never from localStorage
+  const [credits, setCredits] = useState(0);
 
+  // Fetch server-side balance on mount if email is known
+  useEffect(() => {
+    if (!email) return;
+    fetch(`/api/credits?email=${encodeURIComponent(email)}`)
+      .then(r => r.json())
+      .then(data => { if (data.credits !== undefined) setCredits(data.credits); })
+      .catch(() => {});
+  }, []);
+
+  // Handle payment success redirect
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("payment") !== "success") return;
@@ -786,7 +879,17 @@ export default function LeadPulp() {
       .then(r => r.json())
       .then(data => {
         if (data.success) {
-          setCredits(prev => prev + data.credits);
+          // Use server balance if returned, otherwise add credits to current
+          if (data.balance !== null && data.balance !== undefined) {
+            setCredits(data.balance);
+          } else {
+            setCredits(prev => prev + data.credits);
+          }
+          // Also sync email from Stripe if we don't have it yet
+          if (!email && data.email) {
+            try { localStorage.setItem("lp_email", data.email); } catch {}
+            setEmail(data.email);
+          }
           setPage("app");
           setToast({ type: "success", message: `${data.credits.toLocaleString()} credits added! Start scraping.` });
         } else {
@@ -798,8 +901,19 @@ export default function LeadPulp() {
       });
   }, []);
 
-  const onUseCredits = (amount) => {
-    setCredits(prev => Math.max(0, prev - amount));
+  // Called when user submits email in AppPage
+  const handleEmailSet = (newEmail, serverCredits, isNew) => {
+    try { localStorage.setItem("lp_email", newEmail); } catch {}
+    setEmail(newEmail);
+    setCredits(serverCredits ?? 0);
+    if (isNew) {
+      setToast({ type: "success", message: "Welcome! You have 3 free credits to start." });
+    }
+  };
+
+  // Called when results return with a fresh server balance
+  const onCreditsUpdate = (newBalance) => {
+    setCredits(newBalance);
   };
 
   const onBuyCredits = async (plan) => {
@@ -807,7 +921,7 @@ export default function LeadPulp() {
       const res = await fetch("/api/create-checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ plan, email }),
       });
       if (!res.ok) throw new Error("Failed");
       const { url } = await res.json();
@@ -820,7 +934,7 @@ export default function LeadPulp() {
   return (
     <div style={{ background: COLORS.bg, minHeight: "100vh", color: COLORS.text }}>
       <style>{fonts}{baseStyles}</style>
-      <Nav page={page} setPage={setPage} credits={credits} isMobile={isMobile} />
+      <Nav page={page} setPage={setPage} credits={credits} email={email} isMobile={isMobile} />
 
       {page === "home" && (
         <>
@@ -835,8 +949,10 @@ export default function LeadPulp() {
       {page === "app" && (
         <AppPage
           setPage={setPage}
+          email={email}
+          onEmailSet={handleEmailSet}
           credits={credits}
-          onUseCredits={onUseCredits}
+          onCreditsUpdate={onCreditsUpdate}
           onBuyCredits={onBuyCredits}
           isMobile={isMobile}
         />

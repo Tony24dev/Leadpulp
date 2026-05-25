@@ -11,7 +11,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { plan } = req.body;
+  const { plan, email } = req.body;
 
   if (!PLANS[plan]) {
     return res.status(400).json({ error: 'Invalid plan' });
@@ -26,7 +26,8 @@ export default async function handler(req, res) {
 
   try {
     const origin = req.headers.origin || `https://${req.headers.host}`;
-    const session = await stripe.checkout.sessions.create({
+
+    const sessionParams = {
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
       mode: 'payment',
@@ -35,8 +36,16 @@ export default async function handler(req, res) {
       metadata: {
         credits: String(PLANS[plan].credits),
         plan,
+        email: email || '',
       },
-    });
+    };
+
+    // Pre-fill customer email if provided
+    if (email && email.includes('@')) {
+      sessionParams.customer_email = email;
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
 
     return res.json({ url: session.url });
   } catch (err) {

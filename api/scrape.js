@@ -1,13 +1,26 @@
-// Starts an Apify Google Maps scraper run and returns the run ID.
-// The frontend polls /api/results?runId=... until the run finishes.
+// Checks server-side credits, then starts an Apify run.
+import { Redis } from '@upstash/redis';
+
+const redis = Redis.fromEnv();
+const creditKey = (email) => `credits:${email.toLowerCase().trim()}`;
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { query, location } = req.body;
+  const { query, location, email } = req.body;
   if (!query || !location) {
     return res.status(400).json({ error: 'Missing query or location' });
+  }
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ error: 'Missing email' });
+  }
+
+  // Check server-side credits
+  const balance = await redis.get(creditKey(email));
+  if (balance === null || Number(balance) <= 0) {
+    return res.status(402).json({ error: 'No credits remaining', credits: 0 });
   }
 
   const apiKey = process.env.APIFY_API_TOKEN;
